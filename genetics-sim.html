@@ -1,0 +1,1109 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>种群基因型频率演化模拟（常染色体遗传 / 伴 X 染色体遗传）</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+    background: #0f1419;
+    color: #e6e6e6;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+  header {
+    padding: 10px 20px;
+    background: #1a2332;
+    border-bottom: 1px solid #2a3a4a;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+  }
+  header .title { font-size: 16px; }
+  header .mode-box {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 400;
+    color: #b0bec5;
+  }
+  header select {
+    padding: 5px 10px;
+    background: #0d1319;
+    border: 1px solid #2a3a4a;
+    border-radius: 5px;
+    color: #e6e6e6;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .main {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+  }
+  .panel {
+    width: 290px;
+    padding: 16px;
+    background: #141c26;
+    border-right: 1px solid #2a3a4a;
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+  .panel h3 {
+    margin: 0 0 10px;
+    font-size: 13px;
+    color: #7fb3d5;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .group {
+    margin-bottom: 18px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid #1f2a36;
+  }
+  .group:last-child { border-bottom: none; }
+  .row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    font-size: 13px;
+  }
+  .row label { color: #b0bec5; }
+  .row input[type="number"] {
+    width: 80px;
+    padding: 4px 6px;
+    background: #0d1319;
+    border: 1px solid #2a3a4a;
+    border-radius: 4px;
+    color: #e6e6e6;
+    font-size: 13px;
+    text-align: right;
+  }
+  .row input[type="range"] {
+    width: 120px;
+    accent-color: #4a9eff;
+  }
+  .row input:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+  .row input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: #4a9eff;
+    cursor: pointer;
+  }
+  .val {
+    display: inline-block;
+    width: 38px;
+    text-align: right;
+    color: #4a9eff;
+    font-variant-numeric: tabular-nums;
+  }
+  .btns { display: flex; gap: 8px; margin-top: 8px; }
+  button {
+    flex: 1;
+    padding: 9px;
+    border: none;
+    border-radius: 5px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  #btnStart { background: #2e7d32; color: #fff; }
+  #btnStart:hover { background: #388e3c; }
+  #btnStart:disabled { background: #2a3a2a; color: #666; cursor: not-allowed; }
+  #btnReset { background: #37474f; color: #fff; }
+  #btnReset:hover { background: #455a64; }
+  .hint { font-size: 11px; color: #607d8b; line-height: 1.5; margin-top: 6px; }
+  .hidden { display: none !important; }
+
+  .content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-width: 0;
+  }
+  .charts {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+  }
+  .chart-cell {
+    flex: 1;
+    position: relative;
+    min-width: 0;
+    background: #0b1015;
+  }
+  .chart-cell + .chart-cell {
+    border-left: 1px solid #2a3a4a;
+  }
+  .chart-cell canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+  .chart-title {
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 12px;
+    color: #90a4ae;
+    letter-spacing: 1px;
+    pointer-events: none;
+    z-index: 2;
+  }
+  .legend {
+    position: absolute;
+    top: 28px;
+    right: 10px;
+    font-size: 11px;
+    background: rgba(15,20,25,0.85);
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid #2a3a4a;
+    line-height: 1.8;
+    pointer-events: none;
+    z-index: 2;
+  }
+  .legend span {
+    display: inline-block;
+    width: 10px; height: 10px;
+    border-radius: 2px;
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+
+  .geno-stack {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .geno-stack .chart-cell {
+    flex: 1;
+  }
+  .geno-stack .chart-cell + .chart-cell {
+    border-left: none;
+    border-top: 1px solid #2a3a4a;
+  }
+
+  .tooltip {
+    position: absolute;
+    pointer-events: none;
+    background: rgba(10,15,20,0.95);
+    border: 1px solid #3a4a5a;
+    border-radius: 6px;
+    padding: 8px 11px;
+    font-size: 12px;
+    line-height: 1.7;
+    color: #e6e6e6;
+    white-space: nowrap;
+    z-index: 10;
+    display: none;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+  }
+  .tooltip .tt-title {
+    color: #90a4ae;
+    font-size: 11px;
+    margin-bottom: 4px;
+    letter-spacing: 0.5px;
+  }
+  .tooltip .tt-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .tooltip .tt-dot {
+    width: 9px; height: 9px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+  .tooltip .tt-name { flex: 1; }
+  .tooltip .tt-val {
+    font-variant-numeric: tabular-nums;
+    color: #fff;
+    margin-left: 8px;
+  }
+
+  .dots-wrap {
+    height: 150px;
+    background: #0d1319;
+    border-top: 1px solid #2a3a4a;
+    position: relative;
+    flex-shrink: 0;
+  }
+  .dots-wrap canvas { display: block; width: 100%; height: 100%; }
+  .dots-label {
+    position: absolute;
+    top: 6px; left: 14px;
+    font-size: 11px;
+    color: #607d8b;
+    letter-spacing: 1px;
+  }
+  .status {
+    position: absolute;
+    bottom: 10px; left: 14px;
+    font-size: 12px;
+    color: #90a4ae;
+    background: rgba(15,20,25,0.85);
+    padding: 4px 10px;
+    border-radius: 4px;
+  }
+</style>
+</head>
+<body>
+<header>
+  <span class="title">种群基因型频率演化模拟</span>
+  <div class="mode-box">
+    <label for="mode">遗传模式：</label>
+    <select id="mode">
+      <option value="auto">常染色体遗传</option>
+      <option value="x">伴 X 染色体遗传</option>
+    </select>
+  </div>
+</header>
+
+<div class="main">
+  <div class="panel">
+    <!-- 常染色体：初始基因型 -->
+    <div class="group" id="groupAuto">
+      <h3>初始基因型频率</h3>
+      <div class="row"><label>AA</label><input type="number" id="fAA" value="0.25" min="0" max="1" step="0.05"></div>
+      <div class="row"><label>Aa</label><input type="number" id="fAa" value="0.50" min="0" max="1" step="0.05"></div>
+      <div class="row"><label>aa</label><input type="number" id="faa" value="0.25" min="0" max="1" step="0.05"></div>
+      <div class="hint">输入会自动归一化，无需手动配平。</div>
+    </div>
+
+    <!-- 伴 X：雌性初始基因型 + 雄性初始基因 -->
+    <div class="group hidden" id="groupX">
+      <h3>初始频率（雌性）</h3>
+      <div class="row"><label>AA ♀</label><input type="number" id="xfAA" value="0.25" min="0" max="1" step="0.05"></div>
+      <div class="row"><label>Aa ♀</label><input type="number" id="xfAa" value="0.50" min="0" max="1" step="0.05"></div>
+      <div class="row"><label>aa ♀</label><input type="number" id="xfaa" value="0.25" min="0" max="1" step="0.05"></div>
+      <div class="hint">雌性三项自动归一化。</div>
+      <h3 style="margin-top:14px;">初始频率（雄性）</h3>
+      <div class="row"><label>A ♂</label><input type="number" id="xm_A" value="0.5" min="0" max="1" step="0.05"></div>
+      <div class="row"><label>a ♂</label><input type="number" id="xm_a" value="0.5" min="0" max="1" step="0.05"></div>
+      <div class="hint">雄性两项自动归一化。</div>
+    </div>
+
+    <!-- 适应度：常染色体 -->
+    <div class="group" id="fitAuto">
+      <h3>适应度 w（选择）</h3>
+      <div class="row"><label>w(AA)</label><input type="number" id="wAA" value="1" min="0" max="2" step="0.05"></div>
+      <div class="row"><label>w(Aa)</label><input type="number" id="wAa" value="1" min="0" max="2" step="0.05"></div>
+      <div class="row"><label>w(aa)</label><input type="number" id="waa" value="1" min="0" max="2" step="0.05"></div>
+      <div class="hint">全为 1 = 无选择。</div>
+    </div>
+
+    <!-- 适应度：伴 X -->
+    <div class="group hidden" id="fitX">
+      <h3>适应度 w（雌性）</h3>
+      <div class="row"><label>w(AA) ♀</label><input type="number" id="xwAA" value="1" min="0" max="2" step="0.05"></div>
+      <div class="row"><label>w(Aa) ♀</label><input type="number" id="xwAa" value="1" min="0" max="2" step="0.05"></div>
+      <div class="row"><label>w(aa) ♀</label><input type="number" id="xwaa" value="1" min="0" max="2" step="0.05"></div>
+      <h3 style="margin-top:14px;">适应度 w（雄性）</h3>
+      <div class="row"><label>w(A) ♂</label><input type="number" id="xwA" value="1" min="0" max="2" step="0.05"></div>
+      <div class="row"><label>w(a) ♂</label><input type="number" id="xwa" value="1" min="0" max="2" step="0.05"></div>
+    </div>
+
+    <!-- 自交比例：常染色体可用，伴 X 模式禁用 -->
+    <div class="group" id="groupS">
+      <h3>自交比例 s</h3>
+      <div class="row">
+        <label>s</label>
+        <input type="range" id="S" value="0" min="0" max="1" step="0.01">
+        <span class="val" id="Sval">0.00</span>
+      </div>
+      <div class="hint" id="hintS">0 = 完全随机交配，1 = 完全自交（杂合子每代减半）。</div>
+    </div>
+
+    <!-- 显示选项 -->
+    <div class="group" id="groupDisplay">
+      <h3>显示选项</h3>
+      <div class="row">
+        <label for="dashOverlap">重合时虚线显示</label>
+        <input type="checkbox" id="dashOverlap" checked>
+      </div>
+      <div class="hint">勾选后，数值重合的曲线会自动用虚线区分。</div>
+    </div>
+
+    <div class="group">
+      <h3>运行设置</h3>
+      <div class="row"><label>总世代数</label><input type="number" id="gens" value="50" min="2" max="500" step="1"></div>
+      <div class="row"><label>每代间隔(ms)</label><input type="number" id="delay" value="250" min="20" max="2000" step="10"></div>
+    </div>
+    <div class="btns">
+      <button id="btnStart">开始</button>
+      <button id="btnReset">重置</button>
+    </div>
+  </div>
+
+  <div class="content">
+    <div class="charts">
+      <!-- 左图：等位基因频率 -->
+      <div class="chart-cell" id="cellAllele">
+        <canvas id="chartAllele"></canvas>
+        <div class="chart-title" id="titleAllele">等位基因频率</div>
+        <div class="legend" id="legendAllele"></div>
+        <div class="tooltip" id="tipAllele"></div>
+      </div>
+
+      <!-- 右图：常染色体模式单图 -->
+      <div class="chart-cell" id="cellGenoAuto">
+        <canvas id="chartGeno"></canvas>
+        <div class="chart-title">基因型频率</div>
+        <div class="legend">
+          <div><span style="background:#ffb300"></span>AA</div>
+          <div><span style="background:#66bb6a"></span>Aa</div>
+          <div><span style="background:#ab47bc"></span>aa</div>
+        </div>
+        <div class="tooltip" id="tipGeno"></div>
+      </div>
+
+      <!-- 右图：伴 X 模式上下两个子图 -->
+      <div class="geno-stack hidden" id="genoStackX">
+        <div class="chart-cell" id="cellXFemale">
+          <canvas id="chartXFemale"></canvas>
+          <div class="chart-title">雌性基因型频率</div>
+          <div class="legend">
+            <div><span style="background:#ffb300"></span>AA ♀</div>
+            <div><span style="background:#66bb6a"></span>Aa ♀</div>
+            <div><span style="background:#ab47bc"></span>aa ♀</div>
+          </div>
+          <div class="tooltip" id="tipXFemale"></div>
+        </div>
+        <div class="chart-cell" id="cellXMale">
+          <canvas id="chartXMale"></canvas>
+          <div class="chart-title">雄性基因型频率</div>
+          <div class="legend">
+            <div><span style="background:#ff5252"></span>A ♂</div>
+            <div><span style="background:#448aff"></span>a ♂</div>
+          </div>
+          <div class="tooltip" id="tipXMale"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="dots-wrap">
+      <div class="dots-label">种群个体示意（不参与计算）</div>
+      <canvas id="dots"></canvas>
+      <div class="status" id="status">就绪</div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const modeSel = $('mode');
+
+  // 常染色体控件
+  const fAA=$('fAA'), fAa=$('fAa'), faa=$('faa');
+  const wAA=$('wAA'), wAa=$('wAa'), waa=$('waa');
+  const S=$('S'), Sval=$('Sval');
+
+  // 伴 X 控件
+  const xfAA=$('xfAA'), xfAa=$('xfAa'), xfaa=$('xfaa');
+  const xm_A=$('xm_A'), xm_a=$('xm_a');
+  const xwAA=$('xwAA'), xwAa=$('xwAa'), xwaa=$('xwaa');
+  const xwA=$('xwA'), xwa=$('xwa');
+
+  // 显示选项
+  const dashOverlap = $('dashOverlap');
+
+  const gens=$('gens'), delay=$('delay');
+  const btnStart=$('btnStart'), btnReset=$('btnReset');
+  const status=$('status');
+
+  // 分组显示
+  const groupAuto=$('groupAuto'), groupX=$('groupX');
+  const fitAuto=$('fitAuto'), fitX=$('fitX');
+  const cellGenoAuto=$('cellGenoAuto'), genoStackX=$('genoStackX');
+  const titleAllele=$('titleAllele'), legendAllele=$('legendAllele');
+  const hintS=$('hintS');
+
+  S.addEventListener('input', ()=> Sval.textContent = (+S.value).toFixed(2));
+  dashOverlap.addEventListener('change', ()=> redrawAll());
+
+  // ---------- 画布 ----------
+  const chartAllele = $('chartAllele'), actx = chartAllele.getContext('2d');
+  const chartGeno   = $('chartGeno'),   gctx = chartGeno.getContext('2d');
+  const chartXFemale= $('chartXFemale'),xfctx= chartXFemale.getContext('2d');
+  const chartXMale  = $('chartXMale'),  xmctx= chartXMale.getContext('2d');
+  const dots        = $('dots'),        dctx = dots.getContext('2d');
+
+  const cellAllele = $('cellAllele');
+  const cellGeno   = $('cellGenoAuto');
+  const cellXFemale= $('cellXFemale');
+  const cellXMale  = $('cellXMale');
+  const tipAllele  = $('tipAllele');
+  const tipGeno    = $('tipGeno');
+  const tipXFemale = $('tipXFemale');
+  const tipXMale   = $('tipXMale');
+
+  function fitCanvas(c){
+    const r = c.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    c.width = r.width * dpr;
+    c.height = r.height * dpr;
+    c.getContext('2d').setTransform(dpr,0,0,dpr,0,0);
+    return {w:r.width, h:r.height};
+  }
+
+  let sizeAllele = fitCanvas(chartAllele);
+  let sizeGeno   = fitCanvas(chartGeno);
+  let sizeXFemale= fitCanvas(chartXFemale);
+  let sizeXMale  = fitCanvas(chartXMale);
+  let sizeDots   = fitCanvas(dots);
+
+  function refitAll(){
+    sizeAllele = fitCanvas(chartAllele);
+    sizeGeno   = fitCanvas(chartGeno);
+    sizeXFemale= fitCanvas(chartXFemale);
+    sizeXMale  = fitCanvas(chartXMale);
+    sizeDots   = fitCanvas(dots);
+  }
+  window.addEventListener('resize', ()=>{ refitAll(); redrawAll(); });
+
+  // ---------- 数据 ----------
+  const N_DOTS = 400;
+  let history = [];
+  let historyX = [];
+  let dotColors = [];
+  let running = false;
+  let timer = null;
+  let params = null;
+
+  let hoverAllele = null;
+  let hoverGeno   = null;
+  let hoverXFemale= null;
+  let hoverXMale  = null;
+
+  // ---------- 参数 ----------
+  function normalize3(a,b,c){
+    a=Math.max(0,+a||0); b=Math.max(0,+b||0); c=Math.max(0,+c||0);
+    let s=a+b+c; if (s<=0){a=1/3;b=1/3;c=1/3;s=1;}
+    return [a/s,b/s,c/s];
+  }
+  function normalize2(a,b){
+    a=Math.max(0,+a||0); b=Math.max(0,+b||0);
+    let s=a+b; if (s<=0){a=0.5;b=0.5;s=1;}
+    return [a/s,b/s];
+  }
+
+  function readParams(){
+    const mode = modeSel.value;
+    const base = {
+      mode,
+      gens: Math.max(2, Math.min(500, Math.round(+gens.value))),
+      delay: Math.max(20, +delay.value)
+    };
+    if (mode === 'auto'){
+      const [a,b,c] = normalize3(fAA.value, fAa.value, faa.value);
+      return Object.assign(base, {
+        AA:a, Aa:b, aa:c,
+        wAA: Math.max(0,+wAA.value),
+        wAa: Math.max(0,+wAa.value),
+        waa: Math.max(0,+waa.value),
+        s: +S.value
+      });
+    } else {
+      const [fa,fb,fc] = normalize3(xfAA.value, xfAa.value, xfaa.value);
+      const [ma,mb]    = normalize2(xm_A.value, xm_a.value);
+      return Object.assign(base, {
+        AA:fa, Aa:fb, aa:fc,
+        mA:ma, ma:mb,
+        wAA: Math.max(0,+xwAA.value),
+        wAa: Math.max(0,+xwAa.value),
+        waa: Math.max(0,+xwaa.value),
+        wA:  Math.max(0,+xwA.value),
+        wa:  Math.max(0,+xwa.value),
+        s: 0
+      });
+    }
+  }
+
+  // ---------- 常染色体递推 ----------
+  function stepAuto(state, P){
+    let AA = state.AA * P.wAA;
+    let Aa = state.Aa * P.wAa;
+    let aa = state.aa * P.waa;
+    const wbar = AA + Aa + aa;
+    if (wbar <= 0) return { p:0, q:1, AA:0, Aa:0, aa:1, dead:true };
+    AA/=wbar; Aa/=wbar; aa/=wbar;
+
+    const p = AA + Aa/2;
+    const q = 1 - p;
+    const s = P.s;
+
+    const nAA = s*(AA + Aa/4) + (1-s)*p*p;
+    const nAa = s*(Aa/2)      + (1-s)*2*p*q;
+    const naa = s*(aa + Aa/4) + (1-s)*q*q;
+
+    return { p, q, AA:nAA, Aa:nAa, aa:naa, dead:false };
+  }
+
+  // ---------- 伴 X 递推 ----------
+  function stepX(state, P){
+    let AA = state.AA * P.wAA;
+    let Aa = state.Aa * P.wAa;
+    let aa = state.aa * P.waa;
+    const wF = AA + Aa + aa;
+    if (wF <= 0) return { dead:true };
+
+    let A = state.A * P.wA;
+    let a = state.a * P.wa;
+    const wM = A + a;
+    if (wM <= 0) return { dead:true };
+
+    AA/=wF; Aa/=wF; aa/=wF;
+    A/=wM;  a/=wM;
+
+    const pf = AA + Aa/2;
+    const qf = 1 - pf;
+    const pm = A;
+    const qm = a;
+
+    const nA = pf;
+    const na = qf;
+    const nAA = pf * pm;
+    const nAa = pf * qm + qf * pm;
+    const naa = qf * qm;
+
+    return {
+      AA:nAA, Aa:nAa, aa:naa,
+      A:nA, a:na,
+      pf, qf, pm, qm,
+      dead:false
+    };
+  }
+
+  // ---------- 点阵 ----------
+  function randomizeDotsAuto(AA, Aa, aa){
+    dotColors = new Array(N_DOTS);
+    for (let i=0;i<N_DOTS;i++){
+      const r = Math.random();
+      if (r < AA) dotColors[i] = '#ffb300';
+      else if (r < AA+Aa) dotColors[i] = '#66bb6a';
+      else dotColors[i] = '#ab47bc';
+    }
+  }
+  function randomizeDotsX(fAA,fAa,faa, mA,ma){
+    dotColors = new Array(N_DOTS);
+    const half = Math.floor(N_DOTS/2);
+    for (let i=0;i<N_DOTS;i++){
+      if (i < half){
+        const r = Math.random();
+        if (r < fAA) dotColors[i] = '#ffb300';
+        else if (r < fAA+fAa) dotColors[i] = '#66bb6a';
+        else dotColors[i] = '#ab47bc';
+      } else {
+        dotColors[i] = Math.random() < mA ? '#ff5252' : '#448aff';
+      }
+    }
+  }
+
+  // ---------- 绘图工具 ----------
+  function drawAxes(ctx, size, totalGen){
+    const {w,h} = size;
+    ctx.clearRect(0,0,w,h);
+    const padL = 46, padR = 14, padT = 34, padB = 30;
+    const plotW = w - padL - padR;
+    const plotH = h - padT - padB;
+
+    ctx.strokeStyle = '#1a2332';
+    ctx.lineWidth = 1;
+    ctx.fillStyle = '#546e7a';
+    ctx.font = '11px sans-serif';
+    for (let i=0;i<=5;i++){
+      const y = padT + plotH * i/5;
+      ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL+plotW, y); ctx.stroke();
+      ctx.textAlign = 'right';
+      ctx.fillText((1 - i/5).toFixed(1), padL-6, y+4);
+    }
+    ctx.textAlign = 'center';
+    const tickStep = Math.max(1, Math.round(totalGen/10));
+    const xOf = g => padL + (totalGen<=1?0:plotW * g/(totalGen-1));
+    for (let g=0; g<=totalGen; g+=tickStep){
+      ctx.fillText(g, xOf(g), padT+plotH+16);
+    }
+    ctx.fillText('世代', padL+plotW/2, h-4);
+
+    return {padL, padR, padT, padB, plotW, plotH, xOf,
+            yOf: v => padT + plotH * (1 - v)};
+  }
+
+  // ---------- 绘制曲线（支持重合时虚线） ----------
+  function drawSeries(ctx, geo, hist, seriesList){
+    const {xOf, yOf} = geo;
+    const n = hist.length;
+    const useDash = dashOverlap.checked;
+    const EPS = 1e-6;
+
+    // 计算每个系列每一代是否与“前面已画系列”重合
+    const dashFlags = seriesList.map(()=> new Array(n).fill(false));
+    if (useDash){
+      for (let si = 0; si < seriesList.length; si++){
+        for (let gi = 0; gi < n; gi++){
+          const d = hist[gi];
+          const v = d[seriesList[si].key];
+          if (v == null) continue;
+          for (let sj = 0; sj < si; sj++){
+            const u = d[seriesList[sj].key];
+            if (u == null) continue;
+            if (Math.abs(u - v) < EPS){
+              dashFlags[si][gi] = true;
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    ctx.lineWidth = 2;
+
+    seriesList.forEach((s, si)=>{
+      ctx.strokeStyle = s.color;
+
+      const flag = dashFlags[si];
+
+      // 扫描连续段：段间共享端点，保证不断线
+      const strokeSegment = (from, to, dashed)=>{
+        if (to < from) return;
+        ctx.save();
+        if (dashed) ctx.setLineDash([5,4]);
+        else ctx.setLineDash([]);
+        ctx.beginPath();
+        let started = false;
+        for (let i = from; i <= to; i++){
+          const d = hist[i];
+          const v = d[s.key];
+          if (v == null) continue;
+          const x = xOf(d.gen), y = yOf(v);
+          if (!started){ ctx.moveTo(x,y); started = true; }
+          else ctx.lineTo(x,y);
+        }
+        ctx.stroke();
+        ctx.restore();
+      };
+
+      let cur = flag[0];
+      let start = 0;
+      for (let i = 1; i < n; i++){
+        if (flag[i] !== cur){
+          strokeSegment(start, i, cur); // 共享 i 点
+          start = i;
+          cur = flag[i];
+        }
+      }
+      strokeSegment(start, n-1, cur);
+
+      // 末端数值点
+      const last = hist[n-1];
+      if (last && last[s.key] != null){
+        ctx.setLineDash([]);
+        ctx.fillStyle = s.color;
+        ctx.beginPath();
+        ctx.arc(xOf(last.gen), yOf(last[s.key]), 3, 0, Math.PI*2);
+        ctx.fill();
+      }
+    });
+  }
+
+  function drawHover(ctx, geo, hist, seriesList, idx){
+    if (idx == null || !hist[idx]) return;
+    const d = hist[idx];
+    const {xOf, yOf, padT, plotH} = geo;
+    const x = xOf(d.gen);
+    ctx.save();
+    ctx.strokeStyle = 'rgba(144,164,174,0.5)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4,3]);
+    ctx.beginPath();
+    ctx.moveTo(x, padT);
+    ctx.lineTo(x, padT + plotH);
+    ctx.stroke();
+    ctx.restore();
+    seriesList.forEach(s=>{
+      if (d[s.key] == null) return;
+      ctx.fillStyle = s.color;
+      ctx.beginPath();
+      ctx.arc(x, yOf(d[s.key]), 4, 0, Math.PI*2);
+      ctx.fill();
+      ctx.strokeStyle = '#0b1015';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    });
+  }
+
+  const alleleSeriesAuto = [
+    {key:'p', color:'#ff5252', name:'p (A)'},
+    {key:'q', color:'#448aff', name:'q (a)'}
+  ];
+  const genoSeriesAuto = [
+    {key:'AA', color:'#ffb300', name:'AA'},
+    {key:'Aa', color:'#66bb6a', name:'Aa'},
+    {key:'aa', color:'#ab47bc', name:'aa'}
+  ];
+  const femaleSeries = [
+    {key:'AA', color:'#ffb300', name:'AA ♀'},
+    {key:'Aa', color:'#66bb6a', name:'Aa ♀'},
+    {key:'aa', color:'#ab47bc', name:'aa ♀'}
+  ];
+  const maleSeries = [
+    {key:'A', color:'#ff5252', name:'A ♂'},
+    {key:'a', color:'#448aff', name:'a ♂'}
+  ];
+
+  function updateXLegend(){
+    legendAllele.innerHTML =
+      '<div><span style="background:#ff5252"></span>p ♀ (A)</div>' +
+      '<div><span style="background:#448aff"></span>q ♀ (a)</div>' +
+      '<div><span style="background:#ff8a80"></span>p ♂ (A)</div>' +
+      '<div><span style="background:#82b1ff"></span>q ♂ (a)</div>';
+    titleAllele.textContent = '等位基因频率（雌/雄）';
+  }
+  function updateAutoLegend(){
+    legendAllele.innerHTML =
+      '<div><span style="background:#ff5252"></span>p (A)</div>' +
+      '<div><span style="background:#448aff"></span>q (a)</div>';
+    titleAllele.textContent = '等位基因频率';
+  }
+
+  const alleleSeriesX = [
+    {key:'pf', color:'#ff5252', name:'p ♀ (A)'},
+    {key:'qf', color:'#448aff', name:'q ♀ (a)'},
+    {key:'pm', color:'#ff8a80', name:'p ♂ (A)'},
+    {key:'qm', color:'#82b1ff', name:'q ♂ (a)'}
+  ];
+
+  // ---------- 绘图入口 ----------
+  function drawAlleleChart(){
+    const totalGen = params ? params.gens : 50;
+    const geo = drawAxes(actx, sizeAllele, totalGen);
+    if (params && params.mode === 'x'){
+      if (historyX.length === 0) return;
+      drawSeries(actx, geo, historyX, alleleSeriesX);
+      drawHover(actx, geo, historyX, alleleSeriesX, hoverAllele);
+    } else {
+      if (history.length === 0) return;
+      drawSeries(actx, geo, history, alleleSeriesAuto);
+      drawHover(actx, geo, history, alleleSeriesAuto, hoverAllele);
+    }
+  }
+
+  function drawGenoAutoChart(){
+    const totalGen = params ? params.gens : 50;
+    const geo = drawAxes(gctx, sizeGeno, totalGen);
+    if (history.length === 0) return;
+    drawSeries(gctx, geo, history, genoSeriesAuto);
+    drawHover(gctx, geo, history, genoSeriesAuto, hoverGeno);
+  }
+
+  function drawXFemaleChart(){
+    const totalGen = params ? params.gens : 50;
+    const geo = drawAxes(xfctx, sizeXFemale, totalGen);
+    if (historyX.length === 0) return;
+    drawSeries(xfctx, geo, historyX, femaleSeries);
+    drawHover(xfctx, geo, historyX, femaleSeries, hoverXFemale);
+  }
+
+  function drawXMaleChart(){
+    const totalGen = params ? params.gens : 50;
+    const geo = drawAxes(xmctx, sizeXMale, totalGen);
+    if (historyX.length === 0) return;
+    drawSeries(xmctx, geo, historyX, maleSeries);
+    drawHover(xmctx, geo, historyX, maleSeries, hoverXMale);
+  }
+
+  function drawDots(){
+    const {w,h} = sizeDots;
+    dctx.clearRect(0,0,w,h);
+    const cols = 40;
+    const rows = Math.ceil(N_DOTS/cols);
+    const padX = 14, padY = 22;
+    const cellW = (w - padX*2) / cols;
+    const cellH = (h - padY - 10) / rows;
+    const r = Math.max(2, Math.min(cellW, cellH) * 0.34);
+    for (let i=0;i<N_DOTS;i++){
+      const cx = padX + (i % cols) * cellW + cellW/2;
+      const cy = padY + Math.floor(i / cols) * cellH + cellH/2;
+      dctx.fillStyle = dotColors[i] || '#37474f';
+      dctx.beginPath();
+      dctx.arc(cx, cy, r, 0, Math.PI*2);
+      dctx.fill();
+    }
+  }
+
+  function redrawAll(){
+    if (!params) return;
+    if (params.mode === 'x'){
+      drawAlleleChart();
+      drawXFemaleChart();
+      drawXMaleChart();
+    } else {
+      drawAlleleChart();
+      drawGenoAutoChart();
+    }
+    drawDots();
+  }
+
+  // ---------- 悬停 ----------
+  function pickIndex(mouseX, size, hist, totalGen){
+    if (!hist || hist.length === 0) return null;
+    const padL = 46, padR = 14;
+    const plotW = size.w - padL - padR;
+    const xOf = g => padL + (totalGen<=1?0:plotW * g/(totalGen-1));
+    let best = 0, bestDist = Infinity;
+    for (let i=0;i<hist.length;i++){
+      const x = xOf(hist[i].gen);
+      const dist = Math.abs(x - mouseX);
+      if (dist < bestDist){ bestDist = dist; best = i; }
+    }
+    if (bestDist > 40) return null;
+    return best;
+  }
+
+  function showTip(tipEl, size, hist, idx, series){
+    if (idx == null || !hist[idx]){
+      tipEl.style.display = 'none';
+      return;
+    }
+    const d = hist[idx];
+    const padL = 46, padR = 14;
+    const plotW = size.w - padL - padR;
+    const totalGen = params ? params.gens : 50;
+    const xOf = g => padL + (totalGen<=1?0:plotW * g/(totalGen-1));
+    const px = xOf(d.gen);
+
+    let html = `<div class="tt-title">第 ${d.gen} 代</div>`;
+    series.forEach(s=>{
+      if (d[s.key] == null) return;
+      html += `<div class="tt-row">` +
+        `<span class="tt-dot" style="background:${s.color}"></span>` +
+        `<span class="tt-name">${s.name}</span>` +
+        `<span class="tt-val">${d[s.key].toFixed(4)}</span>` +
+        `</div>`;
+    });
+    tipEl.innerHTML = html;
+    tipEl.style.display = 'block';
+
+    const tipW = tipEl.offsetWidth;
+    const tipH = tipEl.offsetHeight;
+    let left = px + 14;
+    if (left + tipW > size.w - 6) left = px - tipW - 14;
+    if (left < 6) left = 6;
+    let top = 44;
+    if (top + tipH > size.h - 6) top = size.h - tipH - 6;
+    tipEl.style.left = left + 'px';
+    tipEl.style.top  = top + 'px';
+  }
+
+  function attachHover(canvas, tipEl, getSize, getHist, getSeries, setHover, redraw){
+    canvas.addEventListener('mousemove', (e)=>{
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const size = getSize();
+      const hist = getHist();
+      const totalGen = params ? params.gens : 50;
+      const idx = pickIndex(mx, size, hist, totalGen);
+      setHover(idx);
+      redraw();
+      showTip(tipEl, size, hist, idx, getSeries());
+    });
+    canvas.addEventListener('mouseleave', ()=>{
+      setHover(null);
+      tipEl.style.display = 'none';
+      redraw();
+    });
+  }
+
+  attachHover(chartAllele, tipAllele,
+    ()=>sizeAllele,
+    ()=> params && params.mode === 'x' ? historyX : history,
+    ()=> params && params.mode === 'x' ? alleleSeriesX : alleleSeriesAuto,
+    v=>hoverAllele=v, drawAlleleChart);
+
+  attachHover(chartGeno, tipGeno,
+    ()=>sizeGeno, ()=>history, ()=>genoSeriesAuto,
+    v=>hoverGeno=v, drawGenoAutoChart);
+
+  attachHover(chartXFemale, tipXFemale,
+    ()=>sizeXFemale, ()=>historyX, ()=>femaleSeries,
+    v=>hoverXFemale=v, drawXFemaleChart);
+
+  attachHover(chartXMale, tipXMale,
+    ()=>sizeXMale, ()=>historyX, ()=>maleSeries,
+    v=>hoverXMale=v, drawXMaleChart);
+
+  // ---------- 模式切换 ----------
+  function applyMode(){
+    const isX = modeSel.value === 'x';
+    groupAuto.classList.toggle('hidden', isX);
+    groupX.classList.toggle('hidden', !isX);
+    fitAuto.classList.toggle('hidden', isX);
+    fitX.classList.toggle('hidden', !isX);
+    cellGenoAuto.classList.toggle('hidden', isX);
+    genoStackX.classList.toggle('hidden', !isX);
+    S.disabled = isX;
+    Sval.style.color = isX ? '#555' : '#4a9eff';
+    hintS.textContent = isX
+      ? '伴 X 染色体遗传模式下自交已禁用（只做随机交配 + 选择）。'
+      : '0 = 完全随机交配，1 = 完全自交（杂合子每代减半）。';
+
+    if (isX) updateXLegend(); else updateAutoLegend();
+
+    requestAnimationFrame(()=>{
+      refitAll();
+      reset();
+    });
+  }
+  modeSel.addEventListener('change', applyMode);
+
+  // ---------- 重置 / 运行 ----------
+  function reset(){
+    running = false;
+    if (timer){ clearTimeout(timer); timer = null; }
+    history = [];
+    historyX = [];
+    hoverAllele = hoverGeno = hoverXFemale = hoverXMale = null;
+    [tipAllele,tipGeno,tipXFemale,tipXMale].forEach(t=>t.style.display='none');
+
+    params = readParams();
+
+    if (params.mode === 'auto'){
+      history.push({
+        gen: 0,
+        p: params.AA + params.Aa/2,
+        q: params.aa + params.Aa/2,
+        AA: params.AA, Aa: params.Aa, aa: params.aa
+      });
+      randomizeDotsAuto(params.AA, params.Aa, params.aa);
+    } else {
+      const pf = params.AA + params.Aa/2;
+      const qf = 1 - pf;
+      const pm = params.mA;
+      const qm = params.ma;
+      historyX.push({
+        gen: 0,
+        pf, qf, pm, qm,
+        AA: params.AA, Aa: params.Aa, aa: params.aa,
+        A: params.mA, a: params.ma
+      });
+      randomizeDotsX(params.AA, params.Aa, params.aa, params.mA, params.ma);
+    }
+
+    status.textContent = '就绪';
+    btnStart.disabled = false;
+    refitAll();
+    redrawAll();
+  }
+
+  function run(){
+    if (running) return;
+    running = true;
+    btnStart.disabled = true;
+    status.textContent = '运行中…';
+
+    const tick = ()=>{
+      if (!running) return;
+
+      if (params.mode === 'auto'){
+        const cur = history[history.length-1];
+        if (cur.gen >= params.gens){ finish('已达设定世代数'); return; }
+        const nx = stepAuto(cur, params);
+        if (nx.dead){ finish('全部个体适应度为 0，种群灭绝'); return; }
+        history.push({
+          gen: cur.gen + 1,
+          p: nx.p, q: nx.q,
+          AA: nx.AA, Aa: nx.Aa, aa: nx.aa
+        });
+        randomizeDotsAuto(nx.AA, nx.Aa, nx.aa);
+        status.textContent =
+          `第 ${cur.gen+1} 代　p=${nx.p.toFixed(4)}　q=${nx.q.toFixed(4)}　` +
+          `AA=${nx.AA.toFixed(3)}　Aa=${nx.Aa.toFixed(3)}　aa=${nx.aa.toFixed(3)}`;
+
+        if (history.length > 3){
+          const a = history[history.length-2], b = history[history.length-1];
+          const diff = Math.max(
+            Math.abs(a.p-b.p), Math.abs(a.AA-b.AA),
+            Math.abs(a.Aa-b.Aa), Math.abs(a.aa-b.aa));
+          if (diff < 1e-9){ redrawAll(); finish('频率已稳定'); return; }
+        }
+      } else {
+        const cur = historyX[historyX.length-1];
+        if (cur.gen >= params.gens){ finish('已达设定世代数'); return; }
+        const nx = stepX(cur, params);
+        if (nx.dead){ finish('全部个体适应度为 0，种群灭绝'); return; }
+        historyX.push({
+          gen: cur.gen + 1,
+          pf: nx.pf, qf: nx.qf, pm: nx.pm, qm: nx.qm,
+          AA: nx.AA, Aa: nx.Aa, aa: nx.aa,
+          A: nx.A, a: nx.a
+        });
+        randomizeDotsX(nx.AA, nx.Aa, nx.aa, nx.A, nx.a);
+        status.textContent =
+          `第 ${cur.gen+1} 代　♀ p=${nx.pf.toFixed(4)}　♂ p=${nx.pm.toFixed(4)}　` +
+          `♀AA=${nx.AA.toFixed(3)}　♀Aa=${nx.Aa.toFixed(3)}　♀aa=${nx.aa.toFixed(3)}　` +
+          `♂A=${nx.A.toFixed(3)}　♂a=${nx.a.toFixed(3)}`;
+
+        if (historyX.length > 3){
+          const a = historyX[historyX.length-2], b = historyX[historyX.length-1];
+          const diff = Math.max(
+            Math.abs(a.pf-b.pf), Math.abs(a.pm-b.pm),
+            Math.abs(a.AA-b.AA), Math.abs(a.Aa-b.Aa), Math.abs(a.aa-b.aa),
+            Math.abs(a.A-b.A),   Math.abs(a.a-b.a));
+          if (diff < 1e-9){ redrawAll(); finish('频率已稳定'); return; }
+        }
+      }
+
+      redrawAll();
+      timer = setTimeout(tick, params.delay);
+    };
+    tick();
+  }
+
+  function finish(msg){
+    running = false;
+    if (timer){ clearTimeout(timer); timer = null; }
+    btnStart.disabled = false;
+    let last;
+    if (params.mode === 'auto'){
+      last = history[history.length-1];
+      status.textContent =
+        `${msg}　共 ${last.gen} 代　p=${last.p.toFixed(4)}　q=${last.q.toFixed(4)}　` +
+        `AA=${last.AA.toFixed(3)}　Aa=${last.Aa.toFixed(3)}　aa=${last.aa.toFixed(3)}`;
+    } else {
+      last = historyX[historyX.length-1];
+      status.textContent =
+        `${msg}　共 ${last.gen} 代　♀p=${last.pf.toFixed(4)}　♂p=${last.pm.toFixed(4)}`;
+    }
+  }
+
+  btnStart.addEventListener('click', ()=>{
+    reset();
+    params = readParams();
+    run();
+  });
+  btnReset.addEventListener('click', reset);
+
+  // 初始化
+  applyMode();
+})();
+</script>
+</body>
+</html>
